@@ -21,4 +21,6 @@ A simple CRUD Api to help manage tasks to do. Built with express.
 ## Swagger UI
 You can view the interactive documentation at `/docs`
 
-![Swagger UI Screenshot](image.png)
+![Swagger UI Screenshot](swagger.png)
+
+![Curl Screenshot](curl.png)

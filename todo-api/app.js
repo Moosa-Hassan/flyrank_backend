@@ -46,7 +46,7 @@ app.get('/tasks/:id', (req, res) =>{
 app.post('/tasks', (req, res) =>{
   const { title } = req.body;
 
-  if (!title){
+  if (!title || title.trim()==="" ){
     return res.status(400).json({ error: "Title is required" });
   }
 
