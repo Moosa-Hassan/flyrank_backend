@@ -3,21 +3,17 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./openapi.json');
 const app = express();
 const port = 3000;
+const { Pool } = require('pg');
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 app.use(express.json());
-
-let tasks = [
-  {id: 1, title: "Complete assignment 1", done: false},
-  
-  {id: 2, title: "Water plants", done: true},
-  
-  {id: 3, title: "Grade papers", done: false},
-]
 
 app.get('/', (req, res) => {
   res.json({
     name: "Task API", 
     version: "1.0", 
-    endpoints: ["/tasks"]
+    endpoints: ["/tasks","/docs","/health"]
   })
 });
 
@@ -27,70 +23,89 @@ app.get('/health', (req, res) => {
 });
 
 
-app.get('/tasks', (req, res) =>{
-  res.json(tasks);
+app.get('/tasks', async (req, res) =>{
+  try {
+    const result = await pool.query('SELECT * FROM tasks');
+    res.json(result.rows)
+  }
+  catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
 })
 
-app.get('/tasks/:id', (req, res) =>{
+app.get('/tasks/:id', async (req, res) =>{
   const id = parseInt(req.params.id);
-  const task = tasks.find(t => t.id === id);
+  try {
+    const task = await pool.query('SELECT * FROM tasks WHERE id = $1', [id])
+    if (task.rows.length){
+      res.json(task.rows[0]);
+    }
+    else{
+      res.status(404).json({ error: `Task ${id} not found` });
+    }
+  }
+  catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
 
-  if (task){
-    res.json(task);
-  }
-  else{
-    res.status(404).json({ error: `Task ${id} not found` });
-  }
 })
 
-app.post('/tasks', (req, res) =>{
+app.post('/tasks', async (req, res) =>{
   const { title } = req.body;
 
   if (!title || title.trim()==="" ){
     return res.status(400).json({ error: "Title is required" });
   }
 
-  const newTask = {
-    id: tasks.length + 1,
-    title: title,
-    done: false
-  };
-
-  tasks.push(newTask);
-  res.status(201).json(newTask);
+  try {
+    const result = await pool.query(
+      'INSERT INTO tasks (title, done) VALUES ($1, false) RETURNING *',
+      [title]
+    );
+    res.status(201).json(result.rows[0]);
+  }
+  catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
 });
 
-app.put('/tasks/:id', (req, res) =>{
+app.put('/tasks/:id', async (req, res) =>{
   const id = parseInt(req.params.id);
-  const task = tasks.find(t => t.id === id);
-
-  if (!task){
-    return res.status(404).json({ error: `Task ${id} not found` });
-  }
-
   const { title, done } = req.body;
 
   if (title !== undefined && (typeof title !== 'string' || title.trim() === "")){
     return res.status(400).json({ error: "Title cannot be empty" });
   }
 
-  if (title !== undefined) task.title = title;
-  if (done !== undefined) task.done = done;
+  try {
+    const task = await pool.query('SELECT * FROM tasks WHERE id = $1', [id]);
+    if (task.rows.length === 0) {
+      return res.status(404).json({ error: `Task ${id} not found` });
+    }
 
-  res.json(task);
+    const result = await pool.query(
+      'UPDATE tasks SET title = COALESCE($1, title), done = COALESCE($2, done) WHERE id = $3 RETURNING *',
+      [title, done, id]
+    );
+    res.json(result.rows[0]);
+  } 
+  catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
 });
 
-app.delete('/tasks/:id', (req, res) => {
+app.delete('/tasks/:id', async (req, res) => {
   const id = parseInt(req.params.id);
-  const index = tasks.findIndex(t => t.id === id);
-
-  if (index === -1){
-    return res.status(404).json({ error: `Task ${id} not found` });
+  try {
+    const result = await pool.query('DELETE FROM tasks WHERE id = $1', [id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: `Task ${id} not found` });
+    }
+    res.status(204).send();
+  } 
+  catch (err) {
+    res.status(500).json({ error: "Database error" });
   }
-
-  tasks.splice(index, 1);
-  
-  res.status(204).send();
 });
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
