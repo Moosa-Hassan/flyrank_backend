@@ -9,17 +9,23 @@ const pool = new Pool({
 });
 app.use(express.json());
 
+const { createClient } = require('redis');
+const redisClient = createClient({ url: process.env.REDIS_URL });
+
+redisClient.connect().catch(console.error);
+
+app.get('/health', async (req, res) => {
+  const dbStatus = await pool.query('SELECT 1');
+  const redisStatus = redisClient.isOpen ? 'ok' : 'disconnected';
+  res.json({ db: dbStatus, redis: redisStatus });
+});
+
 app.get('/', (req, res) => {
   res.json({
     name: "Task API", 
     version: "1.0", 
     endpoints: ["/tasks","/docs","/health"]
   })
-});
-
-
-app.get('/health', (req, res) => {
-  res.json({ status: "ok" });
 });
 
 
