@@ -93,15 +93,14 @@ app.post('/tasks', (req, res) =>{
   if (!title || title.trim()==="" ){
     return res.status(400).json({ error: "Title is required" });
   }
-
-  const newTask = {
-    id: tasks.length + 1,
-    title: title,
-    done: false
-  };
-
-  tasks.push(newTask);
-  res.status(201).json(newTask);
+  db.run('INSERT INTO tasks (title, done) VALUES (?, 0)', [title.trim()], function(err) {
+    if (err) {return res.status(500).json({ error: "Database error" });}
+    
+    db.get('SELECT * FROM tasks WHERE id = ?', [this.lastID], (err, newTask) => {
+      if (err) {return res.status(500).json({ error: "Database error" });}
+      res.status(201).json({ ...newTask, done: Boolean(newTask.done) });
+    });
+  });
 });
 
 app.put('/tasks/:id', (req, res) =>{
