@@ -1,7 +1,7 @@
 # Quotes Scraper
 
 A simple Node.js scraper that fetches quotes from [quotes.toscrape.com](http://quotes.toscrape.com) and saves them to `quotes.json`. 
-This was made under assignment The polite scrpaer for Backend AI Engineering track of FlyRank AI Internship.
+This was made under assignment The polite scraper for Backend AI Engineering track of FlyRank AI Internship.
 
 ## What it does
 
