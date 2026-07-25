@@ -60,8 +60,8 @@ def login(credentials: AuthCredentials):
 def public_info():
     return {"message": "Welcome stranger! This info is public."}
 
-@app.get("/protected/profile", status_code=status.HTTP_200_OK)
-def protected_profile(authorization: str = Header(None)):
+
+def verify_access_token(authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -72,18 +72,40 @@ def protected_profile(authorization: str = Header(None)):
     
     try:
         response = supabase.auth.get_user(token)
-        user = response.user
-        
-        return {
-            "message": "Token verified successfully",
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "created_at": user.created_at
-            }
-        }
+        return {"token": token, "user": response.user}
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token"
+        )
+
+@app.get("/protected/profile", status_code=status.HTTP_200_OK)
+def protected_profile(auth_data: dict = Depends(verify_access_token)):
+    user = auth_data["user"]
+    return {
+        "message": "Token verified via middleware",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "created_at": user.created_at
+        }
+    }
+
+@app.get("/protected/dashboard", status_code=status.HTTP_200_OK)
+def protected_dashboard(auth_data: dict = Depends(verify_access_token)):
+    user = auth_data["user"]
+    return {
+        "message": f"Welcome to your secure dashboard, {user.email}!"
+    }
+
+@app.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(auth_data: dict = Depends(verify_access_token)):
+    token = auth_data["token"]
+    try:
+        supabase.auth.sign_out(token)
+        return None
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Error signing out"
         )
