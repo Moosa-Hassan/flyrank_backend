@@ -3,6 +3,9 @@ from fastapi import FastAPI, HTTPException, status, Header, Depends
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from pydantic import BaseModel, EmailStr
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+security = HTTPBearer()
 
 load_dotenv()
 
@@ -61,14 +64,8 @@ def public_info():
     return {"message": "Welcome stranger! This info is public."}
 
 
-def verify_access_token(authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Access token required"
-        )
-    
-    token = authorization.split(" ")[1]
+def verify_access_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
     
     try:
         response = supabase.auth.get_user(token)
