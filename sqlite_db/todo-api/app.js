@@ -105,35 +105,37 @@ app.post('/tasks', (req, res) =>{
 
 app.put('/tasks/:id', (req, res) =>{
   const id = parseInt(req.params.id);
-  const task = tasks.find(t => t.id === id);
-
-  if (!task){
-    return res.status(404).json({ error: `Task ${id} not found` });
-  }
-
   const { title, done } = req.body;
 
   if (title !== undefined && (typeof title !== 'string' || title.trim() === "")){
     return res.status(400).json({ error: "Title cannot be empty" });
   }
 
-  if (title !== undefined) task.title = title;
-  if (done !== undefined) task.done = done;
+  db.get('SELECT * FROM tasks WHERE id = ?', [id], (err, task) => {
+    if (err) {return res.status(500).json({ error: "Database error" });}
+    if (!task) {return res.status(404).json({ error: `Task ${id} not found` });}
 
-  res.json(task);
+    const newTitle = title !== undefined ? title.trim() : task.title;
+    const newDone = done !== undefined ? (done ? 1 : 0) : task.done;
+
+    db.run('UPDATE tasks SET title = ?, done = ? WHERE id = ?', [newTitle, newDone, id], (err) => {
+      if (err) {return res.status(500).json({ error: "Database error" });}
+      
+      db.get('SELECT * FROM tasks WHERE id = ?', [id], (err, updated) => {
+        res.json({ ...updated, done: Boolean(updated.done) });
+      });
+    });
+  });
+
 });
 
 app.delete('/tasks/:id', (req, res) => {
   const id = parseInt(req.params.id);
-  const index = tasks.findIndex(t => t.id === id);
-
-  if (index === -1){
-    return res.status(404).json({ error: `Task ${id} not found` });
-  }
-
-  tasks.splice(index, 1);
-  
-  res.status(204).send();
+  db.run('DELETE FROM tasks WHERE id = ?', [id], function(err) {
+    if (err) {return res.status(500).json({ error: "Database error" });}
+    if (this.changes === 0) {return res.status(404).json({ error: `Task ${id} not found` });}
+    res.status(204).send();
+  });
 });
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
